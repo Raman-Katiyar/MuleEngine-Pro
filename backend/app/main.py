@@ -32,6 +32,11 @@ app.add_middleware(
 # Store latest analysis result for export
 latest_result = None
 
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {"status": "healthy", "service": "muleengine-backend"}
+
 @app.get("/")
 async def root():
     return {
