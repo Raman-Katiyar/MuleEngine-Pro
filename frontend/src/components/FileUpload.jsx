@@ -27,10 +27,14 @@ const FileUpload = ({ onAnalysisComplete }) => {
     formData.append('file', file);
 
     try {
-      console.log("📤 Uploading CSV:", file.name, `API: ${process.env.REACT_APP_API_URL}/analyze`);
+      // Ensure API URL doesn't have trailing slash
+      const apiUrl = process.env.REACT_APP_API_URL?.replace(/\/$/, '') || 'http://localhost:5000';
+      const analyzeUrl = `${apiUrl}/analyze`;
+      
+      console.log("📤 Uploading CSV:", file.name, `API: ${analyzeUrl}`);
       
       // API call to our FastAPI backend
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/analyze`, {
+      const response = await fetch(analyzeUrl, {
         method: 'POST',
         body: formData,
       });
