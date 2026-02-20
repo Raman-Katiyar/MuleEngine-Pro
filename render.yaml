@@ -3,19 +3,21 @@ services:
     name: muleengine-backend
     runtime: python
     pythonVersion: 3.10
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python backend/run.py
     envVars:
       - key: ENVIRONMENT
         value: production
       - key: PYTHONUNBUFFERED
         value: 1
+      - key: PORT
+        value: 5000
 
   - type: web
     name: muleengine-frontend
     runtime: node
     buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && REACT_APP_API_URL=https://muleengine-backend.onrender.com npx serve -s build -l $PORT
+    startCommand: cd frontend && npx serve -s build -l 3000
     envVars:
       - key: NODE_ENV
         value: production

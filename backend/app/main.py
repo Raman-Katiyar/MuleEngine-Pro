@@ -1,4 +1,5 @@
 import time
+import sys
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,10 +8,17 @@ from app.services.analysis_engine import AnalysisEngine
 from app.services.graph_service import GraphService
 from app.models.schemas import AnalysisResponse
 
-app = FastAPI(
-    title="Graph-Based Financial Crime Detection Engine - RIFT 2026",
-    description="Money Muling Detection using Graph Theory and Temporal Analysis"
-)
+print("🚀 Starting FastAPI app initialization...", file=sys.stdout)
+
+try:
+    app = FastAPI(
+        title="Graph-Based Financial Crime Detection Engine - RIFT 2026",
+        description="Money Muling Detection using Graph Theory and Temporal Analysis"
+    )
+    print("✅ FastAPI app created successfully", file=sys.stdout)
+except Exception as e:
+    print(f"❌ Error creating FastAPI app: {e}", file=sys.stderr)
+    raise
 
 # CORS configuration
 app.add_middleware(
