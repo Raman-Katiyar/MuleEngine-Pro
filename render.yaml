@@ -2,9 +2,9 @@ services:
   - type: web
     name: muleengine-backend
     runtime: python
-    pythonVersion: 3.10
-    buildCommand: pip install --no-cache-dir -r backend/requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    pythonVersion: 3.10.13
+    buildCommand: python -m pip install --upgrade pip setuptools && python -m pip install --no-cache-dir -r backend/requirements.txt
+    startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONUNBUFFERED
         value: 1
