@@ -13,8 +13,10 @@ services:
     name: muleengine-frontend
     runtime: node
     nodeVersion: 18.19.0
-    buildCommand: cd frontend && REACT_APP_API_URL=https://muleengine-pro-b50h.onrender.com npm install && npm run build
+    buildCommand: cd frontend && npm install && npm run build
     startCommand: cd frontend && npx serve -s build -l 3000
     envVars:
       - key: REACT_APP_API_URL
         value: https://muleengine-pro-b50h.onrender.com
+      - key: CI
+        value: false
