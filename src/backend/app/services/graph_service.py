@@ -1,6 +1,7 @@
 import networkx as nx
 import pandas as pd
 from typing import List, Dict, Set, Tuple
+from app.core.config import Settings
 
 class GraphService:
     """
@@ -10,6 +11,11 @@ class GraphService:
 
     def __init__(self, df: pd.DataFrame):
         self.df = df
+        # Ensure timestamp is datetime type
+        if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
+            df = df.copy()
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            self.df = df
         self.G = nx.DiGraph()
         self._build_graph()
 
@@ -29,35 +35,45 @@ class GraphService:
 
     def detect_cycles(self, min_len: int = 3, max_len: int = 5) -> List[List[str]]:
         """
-        MANDATORY PATTERN 1: Circular Fund Routing (OPTIMIZED for large graphs).
+        MANDATORY PATTERN 1: Circular Fund Routing (OPTIMIZED for speed in live).
         Finds simple cycles within the specified length constraints.
         Money moving A -> B -> C -> A suggests a closed fraud ring.
         
-        OPTIMIZATION: Uses limited DFS instead of exhaustive cycle enumeration
-        to avoid exponential timeout on large graphs.
+        OPTIMIZATION:
+        - Uses stricter limits based on FAST_MODE config
+        - Only checks highest-degree nodes (top fraud risk)
+        - Early exit when limit reached
         """
-        # OPTIMIZATION: Only check high-degree nodes (liquidity hubs)
-        # These are most likely to participate in fraud rings
-        degree_threshold = max(2, len(self.G.nodes()) // 200)  # Top 0.5% of nodes
-        high_degree_nodes = [
-            node for node in self.G.nodes() 
-            if self.G.in_degree(node) + self.G.out_degree(node) >= degree_threshold
-        ]
+        # FAST MODE: Use config settings for stricter limits
+        MAX_CYCLES = Settings.MAX_CYCLES_LIMIT if Settings.FAST_MODE else 1000
+        degree_pct = Settings.HIGH_DEGREE_THRESHOLD_PCT if Settings.FAST_MODE else 0.005
+        
+        # Only check high-degree nodes (liquidity hubs most likely in fraud rings)
+        degree_threshold = max(2, int(len(self.G.nodes()) * degree_pct))
+        node_degrees = [(node, self.G.in_degree(node) + self.G.out_degree(node)) 
+                        for node in self.G.nodes()]
+        node_degrees.sort(key=lambda x: x[1], reverse=True)
+        
+        # Take top N high-degree nodes
+        high_degree_nodes = [node for node, _ in node_degrees[:min(len(node_degrees), 100)]]
+        
+        if Settings.FAST_MODE:
+            high_degree_nodes = high_degree_nodes[:50]  # Even stricter in fast mode
         
         cycles = []
         visited_global = set()
         
-        # Limit total cycles to prevent exponential explosion
-        MAX_CYCLES = 1000
-        
-        # DFS-based cycle finder with depth limit (much faster than exhaustive)
+        # DFS-based cycle finder with depth limit
         for start_node in high_degree_nodes:
             if len(cycles) >= MAX_CYCLES:
+                print(f" [Cycle Detection] Fast mode: stopped at {MAX_CYCLES} cycles")
                 break
             
             stack = [(start_node, [start_node], {start_node})]
+            local_cycle_count = 0
+            max_local_cycles = 20  # Max cycles per starting node
             
-            while stack and len(cycles) < MAX_CYCLES:
+            while stack and len(cycles) < MAX_CYCLES and local_cycle_count < max_local_cycles:
                 current, path, visited = stack.pop()
                 
                 if len(path) > max_len:
@@ -72,11 +88,13 @@ class GraphService:
                         if cycle_key not in visited_global:
                             cycles.append(cycle)
                             visited_global.add(cycle_key)
+                            local_cycle_count += 1
                     
                     # Continue DFS if we haven't exceeded depth
                     if neighbor not in visited and len(path) < max_len:
-                        visited.add(neighbor)
-                        stack.append((neighbor, path + [neighbor], visited.copy()))
+                        new_visited = visited.copy()
+                        new_visited.add(neighbor)
+                        stack.append((neighbor, path + [neighbor], new_visited))
         
         return cycles
 

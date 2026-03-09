@@ -39,6 +39,15 @@ class Settings:
     MAX_TRANSACTIONS = 100_000  # Max transactions to process
     PROCESSING_TIMEOUT_SECONDS = 60  # Max processing time
     
+    # Performance Mode (CRITICAL for live environment)
+    FAST_MODE = True  # Set True for production/live - sacrifices some accuracy for 3-5x speed
+    ENABLE_ML_DETECTION = False  # Disable ML in fast mode - ML is slow on large datasets
+    MAX_ACCOUNTS_ML = 5000  # Skip ML if more accounts (too slow)
+    DATASET_SAMPLE_SIZE = 10000  # Sample size for huge datasets in fast mode
+    MAX_CYCLES_LIMIT = 200  # Reduce from 1000 to 200 in fast mode
+    MAX_CHAINS_LIMIT = 100  # Reduce from 500 to 100 in fast mode
+    HIGH_DEGREE_THRESHOLD_PCT = 0.01  # Only check top 1% high-degree nodes (was 0.5%)
+    
     # Analysis Configuration
     MIN_CYCLE_LENGTH = 3
     MAX_CYCLE_LENGTH = 5

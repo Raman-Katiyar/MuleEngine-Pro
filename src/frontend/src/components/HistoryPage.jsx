@@ -91,7 +91,7 @@ function HistoryPage({ history, onClose, onSelectHistory, isLoading = false }) {
                       <FontAwesomeIcon icon={faBullseye} /> Suspicious Accounts
                     </p>
                     <p className="text-lg font-black" style={{ color: colors.amberYellowBright }}>
-                      {analysis.summary?.suspicious_accounts_count || 0}
+                      {analysis.summary?.suspicious_accounts_flagged || 0}
                     </p>
                   </div>
                   <div className="p-2 rounded-lg" style={{ backgroundColor: `rgba(90, 125, 154, 0.1)` }}>

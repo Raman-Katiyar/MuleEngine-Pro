@@ -2,6 +2,7 @@ import pandas as pd
 from typing import List, Dict, Set, Tuple
 from datetime import timedelta
 from app.core.scoring import RiskWeights
+from app.core.config import Settings
 import networkx as nx
 
 class PatternService:
@@ -13,7 +14,11 @@ class PatternService:
 
     def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.df_sorted = df.sort_values('timestamp')
+        # Ensure timestamp is datetime type
+        if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
+            self.df = df.copy()
+            self.df['timestamp'] = pd.to_datetime(df['timestamp'])
+        self.df_sorted = self.df.sort_values('timestamp')
 
     def detect_smurfing(self) -> Dict[str, List[Dict]]:
         """
@@ -82,12 +87,17 @@ class PatternService:
 
     def detect_shell_networks(self) -> List[Dict]:
         """
-        MANDATORY PATTERN 3: Layered Shell Networks (OPTIMIZED).
+        MANDATORY PATTERN 3: Layered Shell Networks (OPTIMIZED for speed).
         Criteria: Chain of 3+ hops where intermediate accounts have only 2-3 total transactions
-        OPTIMIZATION: Uses iterative BFS instead of recursive DFS to avoid stack overflow
-        and exponential time complexity on large graphs.
+        OPTIMIZATION:
+        - Uses BFS with fast mode limits
+        - Reduces search space significantly in production
+        - Early exit strategies
         """
-        shell_accounts = []
+        # FAST MODE: Use config settings
+        max_chains = Settings.MAX_CHAINS_LIMIT if Settings.FAST_MODE else 500
+        sample_size = 50 if Settings.FAST_MODE else 100
+        max_depth = 4 if Settings.FAST_MODE else 5
         
         # Count total transactions per account (in + out)
         account_activity = {}
@@ -106,25 +116,25 @@ class PatternService:
         for _, row in self.df.iterrows():
             G.add_edge(row['sender_id'], row['receiver_id'])
         
-        # OPTIMIZATION: Use BFS with limited depth + sampling instead of exhaustive DFS
         chains = []
-        max_depth = 5
-        max_chains = 500  # Limit total chains to prevent exponential explosion
         
         # Sample starting nodes (don't check all nodes on large graphs)
-        sample_size = min(len(G.nodes()), 100)
         import random
-        start_nodes = random.sample(list(G.nodes()), min(sample_size, len(G.nodes())))
+        all_nodes = list(G.nodes())
+        start_nodes = random.sample(all_nodes, min(sample_size, len(all_nodes)))
         
         for start_node in start_nodes:
             if len(chains) >= max_chains:
+                print(f" [Shell Detection] Fast mode: stopped at {max_chains} chains")
                 break
             
-            # BFS instead of DFS - more efficient
+            # BFS - more efficient than DFS
             queue = [(start_node, [start_node])]
             visited_in_search = {start_node}
+            local_chain_count = 0
+            max_local_chains = 5  # Max chains per starting node
             
-            while queue and len(chains) < max_chains:
+            while queue and len(chains) < max_chains and local_chain_count < max_local_chains:
                 current, path = queue.pop(0)
                 
                 if len(path) >= 4:  # Min 4 nodes = 3 hops
@@ -134,11 +144,15 @@ class PatternService:
                             "chain_length": len(path) - 1,
                             "shell_count": sum(1 for n in path[1:-1] if n in shell_candidates)
                         })
+                        local_chain_count += 1
                         continue  # Don't extend chains that already qualify
                 
                 # Only extend if we haven't reached max depth
                 if len(path) < max_depth:
-                    for next_node in list(G.successors(current))[:5]:  # Limit branching factor
+                    successors = list(G.successors(current))
+                    # Limit branching factor in fast mode
+                    branch_limit = 3 if Settings.FAST_MODE else 5
+                    for next_node in successors[:branch_limit]:
                         if next_node not in visited_in_search:
                             visited_in_search.add(next_node)
                             queue.append((next_node, path + [next_node]))

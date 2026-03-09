@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.services.graph_service import GraphService
 from app.services.pattern_service import PatternService
 from app.core.scoring import RiskWeights, calculate_final_score
+from app.core.config import Settings
 from app.models.schemas import (
     AnalysisResponse, 
     SuspiciousAccount, 
@@ -45,13 +46,37 @@ class AnalysisEngine:
     _max_rings_output = 75  # Keep ring output concise for UI/performance
 
     def __init__(self, df: pd.DataFrame):
+        # FAST MODE: Sample large datasets for faster analysis
+        original_size = len(df)
+        if Settings.FAST_MODE and original_size > Settings.DATASET_SAMPLE_SIZE:
+            print(f" [FAST MODE] Sampling {Settings.DATASET_SAMPLE_SIZE} from {original_size} transactions")
+            df = df.sample(n=Settings.DATASET_SAMPLE_SIZE, random_state=42)
+            self.sampled = True
+        else:
+            self.sampled = False
+        
         self.df = df
+        self.original_tx_count = original_size
         self.graph_service = GraphService(df)
         self.pattern_service = PatternService(df)
         self.start_time = time.time()
         
         # Generate data fingerprint for caching
         self.data_fingerprint = self._generate_fingerprint(df)
+        
+        # Decide if ML should run
+        all_accounts = set(df['sender_id']) | set(df['receiver_id'])
+        self.enable_ml = (
+            Settings.ENABLE_ML_DETECTION and 
+            ML_AVAILABLE and 
+            len(all_accounts) <= Settings.MAX_ACCOUNTS_ML
+        )
+        
+        if not self.enable_ml:
+            if Settings.FAST_MODE:
+                print(f" [FAST MODE] ML disabled (fast mode active)")
+            elif len(all_accounts) > Settings.MAX_ACCOUNTS_ML:
+                print(f" [ML] Skipped: {len(all_accounts)} accounts > {Settings.MAX_ACCOUNTS_ML} limit")
     
     def _generate_fingerprint(self, df: pd.DataFrame) -> str:
         """Generate unique fingerprint for dataset caching"""
@@ -301,32 +326,34 @@ class AnalysisEngine:
             fraud_rings = sorted(fraud_rings, key=lambda ring: ring.risk_score, reverse=True)[:self._max_rings_output]
 
         # ============================================================================
-        # STEP 3: ML ANOMALY DETECTION (Complementary to rule-based detection)
+        # STEP 3: ML ANOMALY DETECTION (Complementary, optional in fast mode)
         # ============================================================================
-        print(" [ML] Running ensemble anomaly detection...")
+        # ML detects behavioral anomalies:
+        # - Rule-based finds known patterns (cycles, smurfing, shells)
+        # - ML finds unusual behavior (statistical outliers)
+        # Example: Merchant with 100x $100 transactions is normal
         # - But if ONE transaction is $50,000 → ML: HIGH ANOMALY
-        # - The merchant gets flagged by ML even though merchants are usually legit
-        # - This helps catch unusual behavior within legitimate-looking accounts
         # ============================================================================
         
         ml_anomaly_scores = {}
         ml_active = False
         
-        if ML_AVAILABLE:
+        if self.enable_ml:
             try:
-                print(" [ML] Detecting behavioral anomalies...")
+                print(" [ML] Running vectorized anomaly detection...")
                 detector = MLAnomalyDetector()
                 ml_anomaly_scores = detector.detect_anomalies(self.df)
                 ml_active = bool(ml_anomaly_scores)
                 
                 if ml_active:
                     avg_ml_score = np.mean(list(ml_anomaly_scores.values()))
-                    print(f" Anomaly detection complete: {len(ml_anomaly_scores)} accounts")
-                    print(f"   Avg anomaly score: {avg_ml_score:.1f}/100")
+                    print(f" ML complete: {len(ml_anomaly_scores)} accounts, avg score: {avg_ml_score:.1f}/100")
                 else:
-                    print("  ML anomaly detection returned no scores.")
+                    print("  ML returned no scores.")
             except Exception as e:
-                print(f"  ML anomaly detection error: {e}. Using rule-based only.")
+                print(f"  ML error: {e}. Using rule-based only.")
+        else:
+            print(" [ML] Skipped (fast mode or too many accounts)")
         
         # ============================================================================
         # STEP 5: HYBRID SCORING (Rule-Based + ML Anomaly Detection)
@@ -381,20 +408,29 @@ class AnalysisEngine:
         else:
             detection_method = "rule-based"
         
+        # Report transaction count (original vs sampled)
+        if self.sampled:
+            analyzed_count = f"{len(self.df)} (sampled from {self.original_tx_count})"
+        else:
+            analyzed_count = len(self.df)
+        
         summary = AnalysisSummary(
             total_accounts_analyzed=len(all_accounts),
             suspicious_accounts_flagged=len(suspicious_list),
             fraud_rings_detected=len(fraud_rings),
             processing_time_seconds=processing_time,
+            total_transactions=self.original_tx_count if hasattr(self, 'original_tx_count') else len(self.df),
             ml_anomalies_detected=total_ml_anomalies,
             hybrid_system_active=ml_active,
             detection_method=detection_method
         )
 
         print("\n Analysis Complete:")
+        print(f"   Transactions: {analyzed_count}")
         print(f"   Accounts: {len(all_accounts)} | Suspicious: {len(suspicious_list)}")
         print(f"   Fraud Rings: {len(fraud_rings)} | ML Anomalies: {total_ml_anomalies}")
-        print(f"   Method: {detection_method.upper()} | Time: {processing_time}s")
+        print(f"   Method: {detection_method.upper()} | Mode: {'FAST' if Settings.FAST_MODE else 'NORMAL'}")
+        print(f"   Time: {processing_time}s")
 
         return AnalysisResponse(
             suspicious_accounts=suspicious_list,

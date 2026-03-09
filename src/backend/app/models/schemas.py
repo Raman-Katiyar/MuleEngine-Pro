@@ -50,6 +50,7 @@ class AnalysisSummary(BaseModel):
     suspicious_accounts_flagged: int
     fraud_rings_detected: int
     processing_time_seconds: float
+    total_transactions: int = Field(default=0, description="Total number of transactions analyzed")
     # ML/AI Fields
     ml_anomalies_detected: int = Field(default=0, description="Accounts flagged by ML model")
     hybrid_system_active: bool = Field(default=False, description="Whether ML system is enabled")
