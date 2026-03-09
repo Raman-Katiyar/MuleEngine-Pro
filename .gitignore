@@ -78,3 +78,8 @@ tmp/
 *.db
 *.sqlite3
 /backend/data/*.csv  # Keep sample data structure but not actual files
+
+# Workspace-specific paths
+src/backend/.venv/
+src/frontend/node_modules/
+src/frontend/build/
