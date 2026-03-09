@@ -1,10 +1,10 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-pandas==2.3.3
+pandas==2.1.4
 networkx==3.2
 python-multipart==0.0.20
 pydantic==2.10.6
 pydantic-settings==2.7.1
-scikit-learn==1.8.0
+scikit-learn==1.5.2
 joblib==1.4.2
-numpy==2.4.2
+numpy==1.26.4
