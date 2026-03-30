@@ -64,6 +64,12 @@ class AnalysisResponse(BaseModel):
     fraud_rings: List[FraudRing]
     summary: AnalysisSummary
 
+
+class UserRiskCheckRequest(BaseModel):
+    """Request payload for user mode pre-payment risk checks."""
+
+    account_id: str
+
 # --- GRAPH UI SCHEMAS ---
 
 class GraphNode(BaseModel):

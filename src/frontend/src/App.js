@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import FileUpload from './components/FileUpload.jsx';
+import UserModeCheck from './components/UserModeCheck.jsx';
 
 // fontawesome icons
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -31,6 +32,7 @@ function App() {
   const [analysisData, setAnalysisData] = useState(null);
   const [graphData, setGraphData] = useState(null);
   const [analysisHistory, setAnalysisHistory] = useState([]);
+  const [activeMode, setActiveMode] = useState('admin');
   
   const navigate = useNavigate();
 
@@ -191,7 +193,40 @@ function App() {
             <section id="upload" className="mb-12">
               <div className="relative">
                 <div className="absolute -inset-1 bg-gradient-to-r from-amber-200 via-coral-100 to-emerald-200 rounded-3xl opacity-20 blur-xl"></div>
-                <FileUpload onAnalysisComplete={handleAnalysis} />
+                <div className="relative rounded-3xl border-2 p-5 sm:p-6" style={{ borderColor: colors.mutedBlue, backgroundColor: 'rgba(255,255,255,0.45)' }}>
+                  <div className="mb-5 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('admin')}
+                      className="px-4 py-2 rounded-full text-sm font-bold border-2 transition-transform hover:scale-105"
+                      style={{
+                        borderColor: activeMode === 'admin' ? colors.mutedBlue : colors.lightGray,
+                        backgroundColor: activeMode === 'admin' ? colors.mutedBlue : colors.white,
+                        color: activeMode === 'admin' ? colors.white : colors.darkSlateGray,
+                      }}
+                    >
+                      Admin Mode
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveMode('user')}
+                      className="px-4 py-2 rounded-full text-sm font-bold border-2 transition-transform hover:scale-105"
+                      style={{
+                        borderColor: activeMode === 'user' ? colors.emeraldGreen : colors.lightGray,
+                        backgroundColor: activeMode === 'user' ? colors.emeraldGreen : colors.white,
+                        color: activeMode === 'user' ? colors.white : colors.darkSlateGray,
+                      }}
+                    >
+                      User Mode
+                    </button>
+                  </div>
+
+                  {activeMode === 'admin' ? (
+                    <FileUpload onAnalysisComplete={handleAnalysis} />
+                  ) : (
+                    <UserModeCheck apiUrl={apiUrl} />
+                  )}
+                </div>
               </div>
             </section>
             

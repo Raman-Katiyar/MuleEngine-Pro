@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse
 from app.utils.csv_processor import CSVProcessor
 from app.services.analysis_engine import AnalysisEngine
 from app.services.graph_service import GraphService
-from app.models.schemas import AnalysisResponse
+from app.services.user_mode_service import UserRiskService
+from app.models.schemas import AnalysisResponse, UserRiskCheckRequest
 
 print(" Starting FastAPI app initialization...", file=sys.stdout)
 
@@ -31,6 +32,7 @@ app.add_middleware(
 
 # Store latest analysis result for export
 latest_result = None
+latest_df = None
 
 @app.get("/health")
 async def health_check():
@@ -58,7 +60,7 @@ async def analyze_transactions(file: UploadFile = File(...)):
     - amount (Float)
     - timestamp (YYYY-MM-DD HH:MM:SS)
     """
-    global latest_result
+    global latest_result, latest_df
     
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are accepted.")
@@ -92,6 +94,7 @@ async def analyze_transactions(file: UploadFile = File(...)):
         
         # Store for export
         latest_result = result_dict
+        latest_df = df
         
         print(f" Analysis complete: {len(graph_data['nodes'])} nodes, {len(graph_data['edges'])} edges")
         print(f"   Graph nodes: {[n['id'] for n in graph_data['nodes'][:5]]}...")
@@ -132,6 +135,32 @@ async def export_json():
             "Content-Disposition": "attachment; filename=mule_detection_results.json"
         }
     )
+
+
+@app.post("/user-mode/check")
+async def check_payment_risk(request: UserRiskCheckRequest):
+    """
+    User mode endpoint for real-time pre-payment safety checks.
+    Uses the latest uploaded/analyzed CSV as the data source.
+    """
+    global latest_result, latest_df
+
+    if latest_df is None:
+        # Graceful fallback for demo flow: return medium risk when no historical data is available.
+        return UserRiskService.build_no_history_response(
+            request.account_id,
+            no_dataset_loaded=True,
+        )
+
+    flagged_accounts = set()
+    if latest_result:
+        for account in latest_result.get("suspicious_accounts", []):
+            account_id = account.get("account_id")
+            if account_id:
+                flagged_accounts.add(account_id)
+
+    risk_service = UserRiskService(latest_df, flagged_accounts)
+    return risk_service.assess_account(request.account_id)
 
 @app.post("/analyze/graph-data")
 async def get_graph_visualization_data(file: UploadFile = File(...)):

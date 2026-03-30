@@ -36,10 +36,6 @@ export default function ExecutiveRiskBanner({ analysisData }) {
     riskIcon = faExclamationTriangle;
   }
 
-  const riskPercentage = rings.length > 0 
-    ? Math.min(100, Math.round((highRiskCount / Math.max(totalSuspicious, 1)) * 100))
-    : 0;
-
   // Detect dominant pattern
   const patternCounts = {};
   suspicious.forEach(acc => {

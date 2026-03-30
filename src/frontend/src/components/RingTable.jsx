@@ -74,13 +74,6 @@ const RingTable = ({ rings, apiUrl, suspicious_accounts = [], summary = {}, onRi
       const pageHeight = doc.internal.pageSize.getHeight();
       let yPosition = 20;
 
-      // Helper function to add text with line wrapping
-      const addWrappedText = (text, x, y, maxWidth, options = {}) => {
-        const lines = doc.splitTextToSize(text, maxWidth);
-        doc.text(lines, x, y, options);
-        return y + (lines.length * 7);
-      };
-
       // Title
       doc.setFontSize(24);
       doc.setFont(undefined, 'bold');
